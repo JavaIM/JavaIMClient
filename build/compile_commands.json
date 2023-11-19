@@ -1,0 +1,7 @@
+[
+{
+  "directory": "D:/JavaIMClient/build",
+  "command": "D:\\msys64\\ucrt64\\bin\\g++.exe   -g -o CMakeFiles\\JavaIMClient.dir\\main.cpp.obj -c D:\\JavaIMClient\\main.cpp",
+  "file": "D:/JavaIMClient/main.cpp"
+}
+]
