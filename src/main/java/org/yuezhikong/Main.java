@@ -77,7 +77,7 @@ public class Main {
             @Override
             protected void setToken(String newToken) {
                 File token = new File("./token.txt");
-                if (!token.canWrite())
+                if (token.exists() && !token.canWrite())
                 {
                     ErrorPrint("Token 文件无权写入!");
                     ErrorPrint("请检查您的权限配置");
