@@ -198,8 +198,10 @@ public abstract class Client {
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             try
             {
-                if (!(msg instanceof String Msg))
+                if (!(msg instanceof String))
                     return;
+                // 兼容 Java 16- 写法，目的是为了代码可以在Android平台通用，仅需重新编译
+                String Msg = (String) msg;
                 GeneralProtocol protocol = gson.fromJson(Msg, GeneralProtocol.class);
                 if (protocol.getProtocolVersion() != protocolVersion)
                 {
