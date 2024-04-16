@@ -2,6 +2,7 @@ package org.yuezhikong;
 
 import com.google.gson.Gson;
 import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 import org.yuezhikong.Protocol.GeneralProtocol;
 import org.yuezhikong.Protocol.NormalProtocol;
 
@@ -11,6 +12,8 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Main {
     public static void main(String[] args) {
@@ -109,6 +112,20 @@ public class Main {
             @Override
             protected void ErrorPrintf(String data, Object... args) {
                 System.err.printf(data,args);
+            }
+
+            @Override
+            protected ThreadFactory getWorkerThreadFactory() {
+                return new ThreadFactory() {
+                    private final AtomicInteger threadNumber = new AtomicInteger(1);
+                    private final ThreadGroup IOThreadGroup = new ThreadGroup(Thread.currentThread().getThreadGroup(), "IO Thread Group");
+
+                    @Override
+                    public Thread newThread(@NotNull Runnable r) {
+                        return new Thread(IOThreadGroup,
+                                r,"Netty Worker Thread #"+threadNumber.getAndIncrement());
+                    }
+                };
             }
         }
         if (!new File("./token.txt").exists() || new File("./token.txt").length() == 0) {

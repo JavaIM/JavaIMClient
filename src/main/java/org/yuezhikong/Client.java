@@ -13,7 +13,6 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.ReferenceCountUtil;
-import org.jetbrains.annotations.NotNull;
 import org.yuezhikong.Protocol.GeneralProtocol;
 import org.yuezhikong.Protocol.LoginProtocol;
 import org.yuezhikong.Protocol.NormalProtocol;
@@ -26,7 +25,6 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class Client {
     protected static final int protocolVersion = 9;//协议版本
@@ -64,16 +62,7 @@ public abstract class Client {
                       int ServerPort,
                       File ServerCACert)
     {
-        EventLoopGroup workGroup = new NioEventLoopGroup(new ThreadFactory() {
-            private final AtomicInteger threadNumber = new AtomicInteger(1);
-            private final ThreadGroup IOThreadGroup = new ThreadGroup(Thread.currentThread().getThreadGroup(), "IO Thread Group");
-
-            @Override
-            public Thread newThread(@NotNull Runnable r) {
-                return new Thread(IOThreadGroup,
-                        r,"Netty Worker Thread #"+threadNumber.getAndIncrement());
-            }
-        });
+        EventLoopGroup workGroup = new NioEventLoopGroup(getWorkerThreadFactory());
 
         try
         {
@@ -107,6 +96,8 @@ public abstract class Client {
             workGroup.shutdownGracefully();
         }
     }
+
+    protected abstract ThreadFactory getWorkerThreadFactory();
 
     private class ClientHandler extends ChannelInboundHandlerAdapter
     {
