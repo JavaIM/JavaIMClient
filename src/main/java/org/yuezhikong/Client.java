@@ -51,6 +51,14 @@ public abstract class Client {
         start(ServerAddress, ServerPort, ServerCACert);
     }
 
+    /**
+     * 关闭客户端
+     */
+    public void disconnect()
+    {
+        channel.close();
+    }
+
     protected Channel channel;
     /**
      * 启动客户端

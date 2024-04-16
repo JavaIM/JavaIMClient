@@ -30,7 +30,7 @@ public class Main {
             @Override
             protected void onClientLogin() {
                 new Thread(() -> {
-                    // 用户指令处理
+                    // 用户消息处理
                     while (true)
                     {
                         try {
