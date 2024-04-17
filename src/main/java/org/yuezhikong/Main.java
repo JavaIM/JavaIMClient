@@ -2,28 +2,38 @@ package org.yuezhikong;
 
 import com.google.gson.Gson;
 import org.apache.commons.io.FileUtils;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.jetbrains.annotations.NotNull;
 import org.yuezhikong.Protocol.GeneralProtocol;
 import org.yuezhikong.Protocol.NormalProtocol;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchProviderException;
+import java.security.Security;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.Scanner;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Main {
     public static void main(String[] args) {
+        Security.addProvider(new BouncyCastleProvider());
         Scanner scanner = new Scanner(System.in);
         System.out.print("请输入服务器IP地址：");
         String ServerIP = scanner.nextLine();
         System.out.print("请输入服务器端口：");
         int ServerPort = Integer.parseInt(scanner.nextLine());
         System.out.print("请输入服务器CA证书路径：");
-        File ServerCARootCert = new File(scanner.nextLine());
+        X509Certificate ServerCARootCert;
+        try (FileInputStream stream = new FileInputStream(scanner.nextLine())){
+            CertificateFactory factory = CertificateFactory.getInstance("X.509","BC");
+            ServerCARootCert = (X509Certificate) factory.generateCertificate(stream);
+        } catch (CertificateException | NoSuchProviderException | IOException e) {
+            throw new RuntimeException("Failed to open X.509 CA Cert & X.509 RSA Private key, Permission denied?",e);
+        }
         class ConsoleClient extends Client
         {
             private final Gson gson = new Gson();

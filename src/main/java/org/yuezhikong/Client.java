@@ -23,6 +23,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
 
@@ -42,7 +43,7 @@ public abstract class Client {
      */
     public void start(String ServerAddress,
                       int ServerPort,
-                      File ServerCACert,
+                      X509Certificate ServerCACert,
                       String UserName,
                       String Passwd)
     {
@@ -68,7 +69,7 @@ public abstract class Client {
      */
     public void start(String ServerAddress,
                       int ServerPort,
-                      File ServerCACert)
+                      X509Certificate ServerCACert)
     {
         EventLoopGroup workGroup = new NioEventLoopGroup(getWorkerThreadFactory());
 
