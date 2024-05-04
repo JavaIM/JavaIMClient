@@ -4,8 +4,9 @@ import com.google.gson.Gson;
 import org.apache.commons.io.FileUtils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.jetbrains.annotations.NotNull;
+import org.yuezhikong.Protocol.ChatProtocol;
 import org.yuezhikong.Protocol.GeneralProtocol;
-import org.yuezhikong.Protocol.NormalProtocol;
+import org.yuezhikong.Protocol.SystemProtocol;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -39,21 +40,20 @@ public class Main {
             private final Gson gson = new Gson();
             @Override
             protected void onClientLogin() {
-                new Thread(() -> {
+                Thread UserCommandRequestThread = new Thread(() -> {
                     // 用户消息处理
                     while (true)
                     {
                         try {
                             Scanner scanner = new Scanner(System.in);
                             String Data = scanner.nextLine();
-                            NormalProtocol userInput = new NormalProtocol();
-                            userInput.setType("Chat");
+                            ChatProtocol userInput = new ChatProtocol();
                             userInput.setMessage(Data);
 
                             GeneralProtocol generalProtocol = new GeneralProtocol();
                             generalProtocol.setProtocolData(gson.toJson(userInput));
                             generalProtocol.setProtocolVersion(protocolVersion);
-                            generalProtocol.setProtocolName("NormalProtocol");
+                            generalProtocol.setProtocolName("ChatProtocol");
 
                             SendData(gson.toJson(generalProtocol));
                         } catch (Throwable throwable)
@@ -64,7 +64,9 @@ public class Main {
                             System.err.println(sw);
                         }
                     }
-                }, "User Command Request Thread").start();
+                }, "User Command Request Thread");
+                UserCommandRequestThread.setDaemon(true);
+                UserCommandRequestThread.start();
             }
 
             @Override
@@ -136,6 +138,16 @@ public class Main {
                                 r,"Netty Worker Thread #"+threadNumber.getAndIncrement());
                     }
                 };
+            }
+
+            @Override
+            protected void DisplayChatMessage(String sourceUserName, String message) {
+                NormalPrintf("[%s]:%s%n",sourceUserName,message);
+            }
+
+            @Override
+            protected void DisplayMessage(String message) {
+                NormalPrintf("%s%n",message);
             }
         }
         if (!new File("./token.txt").exists() || new File("./token.txt").length() == 0) {
