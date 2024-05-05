@@ -167,7 +167,6 @@ public abstract class Client {
         }
 
         private void HandleSystemProtocol(ChannelHandlerContext ctx, String protocol) throws IOException {
-            // TODO 此处的switch存在bug，无法正确处理登录失败
             SystemProtocol systemProtocol = gson.fromJson(protocol, SystemProtocol.class);
             switch (systemProtocol.getType())
             {
