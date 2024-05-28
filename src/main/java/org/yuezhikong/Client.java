@@ -85,7 +85,7 @@ public abstract class Client {
                                     .trustManager(ServerCACert)
                                     .build().newHandler(ch.alloc()));
                             ch.pipeline().addLast(new LoggingHandler(LogLevel.DEBUG));// 对于每条Channel消息打印debug级别日志
-                            ch.pipeline().addLast(new LineBasedFrameDecoder(1024));// 根据回车分割消息
+                            ch.pipeline().addLast(new LineBasedFrameDecoder(Integer.MAX_VALUE));// 根据回车分割消息
                             ch.pipeline().addLast(new StringEncoder(StandardCharsets.UTF_8), new StringDecoder(StandardCharsets.UTF_8));// 处理文本为String
                             ch.pipeline().addLast(new MessageToMessageEncoder<CharSequence>() {
                                 @Override
