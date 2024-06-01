@@ -13,22 +13,22 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.ReferenceCountUtil;
-import org.yuezhikong.Protocol.ChatProtocol;
-import org.yuezhikong.Protocol.GeneralProtocol;
-import org.yuezhikong.Protocol.LoginProtocol;
-import org.yuezhikong.Protocol.SystemProtocol;
+import org.apache.commons.io.FileUtils;
+import org.yuezhikong.Protocol.*;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
 
 public abstract class Client {
-    protected static final int protocolVersion = 10;//协议版本
+    protected static final int protocolVersion = 11;//协议版本
 
     private String UserName = "";//用户名
     private String Passwd = "";//密码
@@ -171,7 +171,15 @@ public abstract class Client {
             switch (systemProtocol.getType())
             {
                 case "Error": {
-                    NormalPrintf("连接出现错误，服务端发送的错误代码为 %s%n", systemProtocol.getMessage());
+                    onError(systemProtocol);
+                    break;
+                }
+                case "GetFileIdByFileNameResult" : {
+                    NormalPrintf("文件Id: %s%n",systemProtocol.getMessage());
+                    break;
+                }
+                case "GetFileNameByFileIdResult" : {
+                    NormalPrintf("文件名：%s%n",systemProtocol.getMessage());
                     break;
                 }
                 case "DisplayMessage" : {
@@ -227,7 +235,61 @@ public abstract class Client {
                         break;
                     }
                     case "TransferProtocol": {
-                        NormalPrint("服务器发送的 NormalProtocol 协议，当前客户端处于开发阶段，暂不支持");
+                        TransferProtocol transferProtocol = gson.fromJson(protocol.getProtocolData(), TransferProtocol.class);
+
+                        switch (transferProtocol.getTransferProtocolHead().getType()) {
+                            case "fileList" : {
+                                List<TransferProtocol.TransferProtocolBodyBean> bodyBeans = transferProtocol.getTransferProtocolBody();
+                                StringBuilder builder = new StringBuilder("上传的文件列表：");
+                                bodyBeans.forEach((bodyBean) -> builder.append(bodyBean.getData()).append("、"));
+                                builder.deleteCharAt(builder.length() - 1);
+                                NormalPrint(builder.toString());
+                                break;
+                            }
+
+                            case "download" : {
+                                List<TransferProtocol.TransferProtocolBodyBean> bodyBeans = transferProtocol.getTransferProtocolBody();
+                                String fileName = bodyBeans.get(0).getData();
+                                byte[] content = Base64.getDecoder().decode(bodyBeans.get(1).getData());
+
+                                File savedFileDirectory = getFileDownloadDirectory();
+                                String saveFileName;
+                                if (new File(savedFileDirectory,fileName).exists()) {// 返回 saveFileName
+                                    int fileId = 1;
+                                    String prefix, suffix;
+                                    if (fileName.contains(".")) {
+                                        prefix = fileName.substring(0, fileName.lastIndexOf("."));
+                                        suffix = fileName.substring(fileName.lastIndexOf("."));
+                                    } else {
+                                        prefix = fileName;
+                                        suffix = "";
+                                    }
+
+                                    do {
+                                        String name;
+                                        name = String.format("%s(%s)%s", prefix, fileId, suffix);
+                                        if (!new File(savedFileDirectory,name).exists()) {
+                                            saveFileName = name;
+                                            break;
+                                        }
+                                        fileId++;
+                                    } while (true);
+                                } else {
+                                    saveFileName = fileName;
+                                }
+
+                                FileUtils.writeByteArrayToFile(new File(savedFileDirectory,saveFileName), content);
+                                onDownloadedFile(saveFileName, fileName);
+                                break;
+                            }
+
+                            default : {
+                                ErrorPrintf("服务端发送的 TransferProtocol 模式%s 当前客户端不兼容服务端发送的 %s 模式",
+                                        transferProtocol.getTransferProtocolHead().getType(),
+                                        transferProtocol.getTransferProtocolHead().getType());
+                                return;
+                            }
+                        }
                         break;
                     }
                     default: {
@@ -247,6 +309,25 @@ public abstract class Client {
             }
         }
     }
+
+    /**
+     * 当一个文件下载完成时
+     * @param saveFileName 保存的文件名
+     * @param fileName 服务端发来的原始文件名
+     */
+    protected abstract void onDownloadedFile(String saveFileName, String fileName);
+
+    /**
+     * 当请求出现错误时
+     * @param systemProtocol 服务端发送的错误信息
+     */
+    protected abstract void onError(SystemProtocol systemProtocol);
+
+    /**
+     * 获取文件下载文件夹
+     * @return 文件下载文件夹
+     */
+    protected abstract File getFileDownloadDirectory();
 
     /**
      * 显示聊天消息
