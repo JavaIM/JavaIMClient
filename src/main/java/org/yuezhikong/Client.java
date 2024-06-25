@@ -24,6 +24,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
+import java.util.UUID;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
 
@@ -250,6 +251,11 @@ public abstract class Client {
                             case "download" : {
                                 List<TransferProtocol.TransferProtocolBodyBean> bodyBeans = transferProtocol.getTransferProtocolBody();
                                 String fileName = bodyBeans.get(0).getData();
+                                if (fileName.contains("..") || fileName.contains("/") || fileName.contains("\\")) {
+                                    String randomName = UUID.randomUUID().toString();
+                                    ErrorPrintf("服务端发送的文件: %s 中存在非法字符，自动重命名为%s", fileName, randomName);
+                                    fileName = randomName;
+                                }
                                 byte[] content = Base64.getDecoder().decode(bodyBeans.get(1).getData());
 
                                 File savedFileDirectory = getFileDownloadDirectory();
