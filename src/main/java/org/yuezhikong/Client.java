@@ -13,17 +13,14 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.ReferenceCountUtil;
-import org.apache.commons.io.FileUtils;
 import org.yuezhikong.Protocol.*;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
-import java.util.Base64;
 import java.util.UUID;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
@@ -101,7 +98,7 @@ public abstract class Client {
             channel = future.channel();
             future.channel().closeFuture().sync();
         } catch (InterruptedException e) {
-            NormalPrint("主线程受到中断，程序已结束");
+            normalPrint("主线程受到中断，程序已结束");
         } finally {
             workGroup.shutdownGracefully();
         }
@@ -123,8 +120,8 @@ public abstract class Client {
             PrintWriter pw = new PrintWriter(sw);
             cause.printStackTrace(pw);
 
-            ErrorPrint("出现未捕获的错误");
-            ErrorPrint(sw.toString());
+            errorPrint("出现未捕获的错误");
+            errorPrint(sw.toString());
             disconnect();
         }
 
@@ -176,29 +173,29 @@ public abstract class Client {
                     break;
                 }
                 case "GetFileIdByFileNameResult" : {
-                    NormalPrintf("文件Id: %s%n",systemProtocol.getMessage());
+                    normalPrintf("文件Id: %s%n",systemProtocol.getMessage());
                     break;
                 }
                 case "GetFileNameByFileIdResult" : {
-                    NormalPrintf("文件名：%s%n",systemProtocol.getMessage());
+                    normalPrintf("文件名：%s%n",systemProtocol.getMessage());
                     break;
                 }
                 case "DisplayMessage" : {
-                    DisplayMessage(systemProtocol.getMessage());
+                    displayMessage(systemProtocol.getMessage());
                     break;
                 }
                 case "Login" : {
                     if ("Authentication Failed".equals(systemProtocol.getMessage()))
                     {
-                        NormalPrint("登录失败，token已过期或用户名、密码错误");
+                        normalPrint("登录失败，token已过期或用户名、密码错误");
                         ctx.channel().close();
                     } else if ("Already Logged".equals(systemProtocol.getMessage()))
-                        NormalPrint("操作失败，已经登录过了");
+                        normalPrint("操作失败，已经登录过了");
                     else {
                         if ("Success".equals(systemProtocol.getMessage())) {
-                            NormalPrint("登录成功!");
+                            normalPrint("登录成功!");
                         } else {
-                            NormalPrintf("登录成功! 新的 Token 为 %s%n", systemProtocol.getMessage());
+                            normalPrintf("登录成功! 新的 Token 为 %s%n", systemProtocol.getMessage());
                             setToken(systemProtocol.getMessage());
                         }
                        onClientLogin();
@@ -218,9 +215,9 @@ public abstract class Client {
                 GeneralProtocol protocol = gson.fromJson(Msg, GeneralProtocol.class);
                 if (protocol.getProtocolVersion() != protocolVersion)
                 {
-                    ErrorPrint("服务器协议版本与当前客户端不一致");
-                    ErrorPrintf("服务器版本:%s，当前客户端版本:%s%n",protocol.getProtocolVersion(),protocolVersion);
-                    ErrorPrint("客户端已经断开与服务器的连接...");
+                    errorPrint("服务器协议版本与当前客户端不一致");
+                    errorPrintf("服务器版本:%s，当前客户端版本:%s%n",protocol.getProtocolVersion(),protocolVersion);
+                    errorPrint("客户端已经断开与服务器的连接...");
                     ctx.channel().close();
                 }
                 switch (protocol.getProtocolName())
@@ -232,7 +229,7 @@ public abstract class Client {
                     }
                     case "ChatProtocol" : {
                         ChatProtocol chatProtocol = gson.fromJson(protocol.getProtocolData(), ChatProtocol.class);
-                        DisplayChatMessage(chatProtocol.getSourceUserName(), chatProtocol.getMessage());
+                        displayChatMessage(chatProtocol.getSourceUserName(), chatProtocol.getMessage());
                         break;
                     }
                     case "TransferProtocol": {
@@ -244,7 +241,7 @@ public abstract class Client {
                                 StringBuilder builder = new StringBuilder("上传的文件列表：");
                                 bodyBeans.forEach((bodyBean) -> builder.append(bodyBean.getData()).append("、"));
                                 builder.deleteCharAt(builder.length() - 1);
-                                NormalPrint(builder.toString());
+                                normalPrint(builder.toString());
                                 break;
                             }
 
@@ -253,44 +250,17 @@ public abstract class Client {
                                 String fileName = bodyBeans.get(0).getData();
                                 if (fileName.contains("..") || fileName.contains("/") || fileName.contains("\\")) {
                                     String randomName = UUID.randomUUID().toString();
-                                    ErrorPrintf("服务端发送的文件: %s 中存在非法字符，自动重命名为%s", fileName, randomName);
+                                    errorPrintf("服务端发送的文件: %s 中存在非法字符，自动重命名为%s", fileName, randomName);
                                     fileName = randomName;
                                 }
-                                byte[] content = Base64.getDecoder().decode(bodyBeans.get(1).getData());
+                                byte[] content = decodeBase64(bodyBeans.get(1).getData());
 
-                                File savedFileDirectory = getFileDownloadDirectory();
-                                String saveFileName;
-                                if (new File(savedFileDirectory,fileName).exists()) {// 返回 saveFileName
-                                    int fileId = 1;
-                                    String prefix, suffix;
-                                    if (fileName.contains(".")) {
-                                        prefix = fileName.substring(0, fileName.lastIndexOf("."));
-                                        suffix = fileName.substring(fileName.lastIndexOf("."));
-                                    } else {
-                                        prefix = fileName;
-                                        suffix = "";
-                                    }
-
-                                    do {
-                                        String name;
-                                        name = String.format("%s(%s)%s", prefix, fileId, suffix);
-                                        if (!new File(savedFileDirectory,name).exists()) {
-                                            saveFileName = name;
-                                            break;
-                                        }
-                                        fileId++;
-                                    } while (true);
-                                } else {
-                                    saveFileName = fileName;
-                                }
-
-                                FileUtils.writeByteArrayToFile(new File(savedFileDirectory,saveFileName), content);
-                                onDownloadedFile(saveFileName, fileName);
+                                writeDownloadFile(fileName, content);
                                 break;
                             }
 
                             default : {
-                                ErrorPrintf("服务端发送的 TransferProtocol 模式%s 当前客户端不兼容服务端发送的 %s 模式",
+                                errorPrintf("服务端发送的 TransferProtocol 模式%s 当前客户端不兼容服务端发送的 %s 模式",
                                         transferProtocol.getTransferProtocolHead().getType(),
                                         transferProtocol.getTransferProtocolHead().getType());
                                 return;
@@ -299,7 +269,7 @@ public abstract class Client {
                         break;
                     }
                     default: {
-                        ErrorPrintf("服务器发送的协议为 %s 但是当前客户端不支持此协议%n", protocol.getProtocolName());
+                        errorPrintf("服务器发送的协议为 %s 但是当前客户端不支持此协议%n", protocol.getProtocolName());
                         break;
                     }
                 }
@@ -308,7 +278,7 @@ public abstract class Client {
                 StringWriter sw = new StringWriter();
                 PrintWriter pw = new PrintWriter(sw);
                 throwable.printStackTrace(pw);
-                ErrorPrint(sw.toString());
+                errorPrint(sw.toString());
             }
             finally {
                 ReferenceCountUtil.release(msg);
@@ -317,43 +287,44 @@ public abstract class Client {
     }
 
     /**
-     * 当一个文件下载完成时
-     * @param saveFileName 保存的文件名
-     * @param fileName 服务端发来的原始文件名
-     */
-    protected abstract void onDownloadedFile(String saveFileName, String fileName);
-
-    /**
      * 当请求出现错误时
      * @param systemProtocol 服务端发送的错误信息
      */
     protected abstract void onError(SystemProtocol systemProtocol);
 
     /**
-     * 获取文件下载文件夹
-     * @return 文件下载文件夹
+     * 解码 Base64
+     * @param src   Base64编码的字符串
+     * @return      Base64解码后的字符串
      */
-    protected abstract File getFileDownloadDirectory();
+    protected abstract byte[] decodeBase64(String src);
+
+    /**
+     * 写入下载的文件
+     * @param fileName  文件名
+     * @param content   内容
+     */
+    protected abstract void writeDownloadFile(String fileName, byte[] content);
 
     /**
      * 显示聊天消息
      * @param sourceUserName 消息来源用户
      * @param message 消息
      */
-    protected abstract void DisplayChatMessage(String sourceUserName, String message);
+    protected abstract void displayChatMessage(String sourceUserName, String message);
 
     /**
      * 显示消息
      * @param message 消息
      */
-    protected abstract void DisplayMessage(String message);
+    protected abstract void displayMessage(String message);
 
 
     /**
      * 发送数据
      * @param Data 数据
      */
-    public void SendData(String Data)
+    public void sendData(String Data)
     {
         channel.writeAndFlush(Data);
     }
@@ -379,25 +350,25 @@ public abstract class Client {
      * 打印正常消息
      * @param data 信息
      */
-    protected abstract void NormalPrint(String data);
+    protected abstract void normalPrint(String data);
 
     /**
      * printf打印正常消息
      * @param data 信息
      * @param args 参数
      */
-    protected abstract void NormalPrintf(String data, Object ... args);
+    protected abstract void normalPrintf(String data, Object ... args);
 
     /**
      * 打印错误消息
      * @param data 信息
      */
-    protected abstract void ErrorPrint(String data);
+    protected abstract void errorPrint(String data);
 
     /**
      * printf打印错误消息
      * @param data 信息
      * @param args 参数
      */
-    protected abstract void ErrorPrintf(String data, Object ... args);
+    protected abstract void errorPrintf(String data, Object ... args);
 }
