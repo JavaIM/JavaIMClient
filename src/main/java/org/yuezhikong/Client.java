@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.concurrent.ThreadFactory;
 
 public abstract class Client {
-    protected static final int protocolVersion = 11;//协议版本
+    protected static final int protocolVersion = 12;//协议版本
 
     private String UserName = "";//用户名
     private String Passwd = "";//密码
@@ -202,6 +202,9 @@ public abstract class Client {
                     }
                     break;
                 }
+                case "TOTP" : {
+                    recvRequireTOTP();
+                }
             }
         }
         @Override
@@ -259,6 +262,13 @@ public abstract class Client {
                                 break;
                             }
 
+                            case "QRCode" : {
+                                for (TransferProtocol.TransferProtocolBodyBean bodyBean : transferProtocol.getTransferProtocolBody()) {
+                                    recvQRCodeData(decodeBase64(bodyBean.getData()));
+                                }
+                                break;
+                            }
+
                             default : {
                                 errorPrintf("服务端发送的 TransferProtocol 模式%s 当前客户端不兼容服务端发送的 %s 模式",
                                         transferProtocol.getTransferProtocolHead().getType(),
@@ -285,6 +295,17 @@ public abstract class Client {
             }
         }
     }
+
+    /**
+     * 接收到服务端要求TOTP验证码时
+     */
+    protected abstract void recvRequireTOTP();
+
+    /**
+     * 当接收到二维码时
+     * @param data 图片
+     */
+    protected abstract void recvQRCodeData(byte[] data);
 
     /**
      * 当请求出现错误时

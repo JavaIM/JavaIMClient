@@ -9,6 +9,7 @@ import org.yuezhikong.Protocol.GeneralProtocol;
 import org.yuezhikong.Protocol.SystemProtocol;
 import org.yuezhikong.Protocol.TransferProtocol;
 
+import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchProviderException;
@@ -38,34 +39,13 @@ public class Main {
         } catch (CertificateException | NoSuchProviderException | IOException e) {
             throw new RuntimeException("Failed to open X.509 CA Cert & X.509 RSA Private key, Permission denied?",e);
         }
+
         class ConsoleClient extends Client
         {
             private final Gson gson = new Gson();
+            private boolean requireTOTP = false;
 
-            @Override
-            protected void writeDownloadFile(String fileName, byte[] content) {
-                try {
-                    FileUtils.writeByteArrayToFile(new File("./downloadFiles/"+fileName), content);
-                } catch (IOException e) {
-                    StringWriter sw = new StringWriter();
-                    PrintWriter pw = new PrintWriter(sw);
-                    e.printStackTrace(pw);
-                    errorPrintf("文件写入失败%s%n", sw.toString());
-                }
-            }
-
-            @Override
-            protected void onError(SystemProtocol systemProtocol) {
-                errorPrintf("连接出现错误，服务端发送的错误代码为 %s%n", systemProtocol.getMessage());
-            }
-
-            @Override
-            protected byte[] decodeBase64(String src) {
-                return Base64.getDecoder().decode(src);
-            }
-
-            @Override
-            protected void onClientLogin() {
+            public ConsoleClient clientCommandSystem() {
                 Thread UserCommandRequestThread = new Thread(() -> {
                     // 用户消息处理
                     while (true)
@@ -86,6 +66,29 @@ public class Main {
                                         normalPrint("./downloadFileByFileName <文件名> 根据文件名下载上传的文件(只可下载自己上传的)");
                                         normalPrint("./downloadFileByFileId <文件Id> 根据文件Id下载上传的文件(可下载任何人上传的)");
                                         normalPrint("./deleteFileByFileId <文件Id> 根据文件Id删除上传的文件(可下载自己上传的)(如果你是管理员，可以删除他人的文件)");
+                                        normalPrint("./submitTOTP <TOTP验证码> 上传TOTP验证码到服务端");
+                                    }
+
+                                    case "./submitTOTP" -> {
+                                        if (args.length != 2) {
+                                            errorPrint("语法错误，正确的语法为 ./submitTOTP <文件Id>");
+                                            break;
+                                        }
+                                        if (!requireTOTP) {
+                                            errorPrint("服务端没有要求提供TOTP验证码!");
+                                            break;
+                                        }
+                                        SystemProtocol systemProtocol = new SystemProtocol();
+                                        systemProtocol.setType("TOTP");
+                                        systemProtocol.setMessage(args[1]);
+
+                                        GeneralProtocol generalProtocol = new GeneralProtocol();
+                                        generalProtocol.setProtocolData(gson.toJson(systemProtocol));
+                                        generalProtocol.setProtocolVersion(protocolVersion);
+                                        generalProtocol.setProtocolName("SystemProtocol");
+
+                                        sendData(gson.toJson(generalProtocol));
+                                        normalPrint("已发送请求。");
                                     }
 
                                     case "./upload" -> {
@@ -250,6 +253,34 @@ public class Main {
                 }, "User Command Request Thread");
                 UserCommandRequestThread.setDaemon(true);
                 UserCommandRequestThread.start();
+                return this;
+            }
+
+            @Override
+            protected void writeDownloadFile(String fileName, byte[] content) {
+                try {
+                    FileUtils.writeByteArrayToFile(new File("./downloadFiles/"+fileName), content);
+                } catch (IOException e) {
+                    StringWriter sw = new StringWriter();
+                    PrintWriter pw = new PrintWriter(sw);
+                    e.printStackTrace(pw);
+                    errorPrintf("文件写入失败%s%n", sw.toString());
+                }
+            }
+
+            @Override
+            protected void onError(SystemProtocol systemProtocol) {
+                errorPrintf("连接出现错误，服务端发送的错误代码为 %s%n", systemProtocol.getMessage());
+            }
+
+            @Override
+            protected byte[] decodeBase64(String src) {
+                return Base64.getDecoder().decode(src);
+            }
+
+            @Override
+            protected void onClientLogin() {
+
             }
 
             @Override
@@ -324,6 +355,13 @@ public class Main {
             }
 
             @Override
+            protected void recvRequireTOTP() {
+                normalPrint("服务端要求基于TOTP的增强安全性");
+                normalPrint("请使用submitTOTP客户端指令提交TOTP验证码");
+                requireTOTP = true;
+            }
+
+            @Override
             protected void displayChatMessage(String sourceUserName, String message) {
                 normalPrintf("[%s]:%s%n",sourceUserName,message);
             }
@@ -332,16 +370,39 @@ public class Main {
             protected void displayMessage(String message) {
                 normalPrintf("%s%n",message);
             }
+
+            @Override
+            protected void recvQRCodeData(byte[] data) {
+                try {
+                    File qrCode = File.createTempFile("JavaIM","QRCode.png");
+                    qrCode.deleteOnExit();
+                    FileUtils.writeByteArrayToFile(qrCode,data);
+                    normalPrintf("接收到的二维码已临时保存至：%s%n",qrCode.getAbsolutePath());
+                    if (!Desktop.isDesktopSupported()) {
+                        normalPrint("您的系统没有桌面，无法自动打开二维码");
+                        normalPrint("请您手动打开二维码");
+                        return;
+                    }
+                    if (!Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                        normalPrint("您的系统不支持以关联的应用程序打开文件");
+                        normalPrint("请您手动打开二维码");
+                        return;
+                    }
+                    Desktop.getDesktop().open(qrCode);
+                } catch (IOException e) {
+                    errorPrint("创建临时文件失败!");
+                }
+            }
         }
         if (!new File("./token.txt").exists() || new File("./token.txt").length() == 0) {
             System.out.print("请输入用户名：");
             String userName = scanner.nextLine();
             System.out.print("请输入密码：");
             String passwd = scanner.nextLine();
-            new ConsoleClient().start(ServerIP,ServerPort,ServerCARootCert,userName,passwd);
+            new ConsoleClient().clientCommandSystem().start(ServerIP,ServerPort,ServerCARootCert,userName,passwd);
         }
         else {
-            new ConsoleClient().start(ServerIP,ServerPort,ServerCARootCert);
+            new ConsoleClient().clientCommandSystem().start(ServerIP,ServerPort,ServerCARootCert);
         }
     }
 }
