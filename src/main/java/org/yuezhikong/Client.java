@@ -242,7 +242,9 @@ public abstract class Client {
                             case "fileList" : {
                                 List<TransferProtocol.TransferProtocolBodyBean> bodyBeans = transferProtocol.getTransferProtocolBody();
                                 StringBuilder builder = new StringBuilder("上传的文件列表：");
-                                bodyBeans.forEach((bodyBean) -> builder.append(bodyBean.getData()).append("、"));
+                                for (TransferProtocol.TransferProtocolBodyBean bodyBean : bodyBeans) {
+                                    builder.append(bodyBean.getData()).append("、");
+                                }
                                 builder.deleteCharAt(builder.length() - 1);
                                 normalPrint(builder.toString());
                                 break;
