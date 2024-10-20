@@ -400,7 +400,7 @@ public class Main {
                     case "fileList" -> {
                         TransferProtocol transferProtocol = (TransferProtocol) data;
                         StringBuilder builder = new StringBuilder();
-                        transferProtocol.getTransferProtocolBody().forEach(builder::append);
+                        transferProtocol.getTransferProtocolBody().forEach(body -> builder.append(body.getData()));
                         System.out.println("接收到文件列表报告，文件列表有:" + builder);
                     }
                     case "FileId" -> System.out.println("接收到文件ID报告，文件ID为:" + data);
