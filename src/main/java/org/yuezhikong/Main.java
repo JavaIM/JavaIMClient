@@ -393,6 +393,20 @@ public class Main {
                     errorPrint("创建临时文件失败!");
                 }
             }
+
+            @Override
+            protected void caughtFileSystemReport(String mode, Object data) {
+                switch (mode) {
+                    case "fileList" -> {
+                        TransferProtocol transferProtocol = (TransferProtocol) data;
+                        StringBuilder builder = new StringBuilder();
+                        transferProtocol.getTransferProtocolBody().forEach(builder::append);
+                        System.out.println("接收到文件列表报告，文件列表有:" + builder);
+                    }
+                    case "FileId" -> System.out.println("接收到文件ID报告，文件ID为:" + data);
+                    case "FileName" -> System.out.println("接收到文件名报告，文件名为:" + data);
+                }
+            }
         }
         if (!new File("./token.txt").exists() || new File("./token.txt").length() == 0) {
             System.out.print("请输入用户名：");

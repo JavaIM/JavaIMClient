@@ -164,39 +164,38 @@ public abstract class Client {
             ctx.writeAndFlush(gson.toJson(generalProtocol));
         }
 
-        private void HandleSystemProtocol(ChannelHandlerContext ctx, String protocol) throws IOException {
-            SystemProtocol systemProtocol = gson.fromJson(protocol, SystemProtocol.class);
-            switch (systemProtocol.getType())
+        private void HandleSystemProtocol(ChannelHandlerContext ctx, SystemProtocol protocol) throws IOException {
+            switch (protocol.getType())
             {
                 case "Error": {
-                    onError(systemProtocol);
+                    onError(protocol);
                     break;
                 }
                 case "GetFileIdByFileNameResult" : {
-                    normalPrintf("文件Id: %s%n",systemProtocol.getMessage());
+                    caughtFileSystemReport("FileId",protocol.getMessage());
                     break;
                 }
                 case "GetFileNameByFileIdResult" : {
-                    normalPrintf("文件名：%s%n",systemProtocol.getMessage());
+                    caughtFileSystemReport("FileName",protocol.getMessage());
                     break;
                 }
                 case "DisplayMessage" : {
-                    displayMessage(systemProtocol.getMessage());
+                    displayMessage(protocol.getMessage());
                     break;
                 }
                 case "Login" : {
-                    if ("Authentication Failed".equals(systemProtocol.getMessage()))
+                    if ("Authentication Failed".equals(protocol.getMessage()))
                     {
                         normalPrint("登录失败，token已过期或用户名、密码错误");
                         ctx.channel().close();
-                    } else if ("Already Logged".equals(systemProtocol.getMessage()))
+                    } else if ("Already Logged".equals(protocol.getMessage()))
                         normalPrint("操作失败，已经登录过了");
                     else {
-                        if ("Success".equals(systemProtocol.getMessage())) {
+                        if ("Success".equals(protocol.getMessage())) {
                             normalPrint("登录成功!");
                         } else {
-                            normalPrintf("登录成功! 新的 Token 为 %s%n", systemProtocol.getMessage());
-                            setToken(systemProtocol.getMessage());
+                            normalPrintf("登录成功! 新的 Token 为 %s%n", protocol.getMessage());
+                            setToken(protocol.getMessage());
                         }
                        onClientLogin();
                     }
@@ -227,7 +226,7 @@ public abstract class Client {
                 {
                     case "SystemProtocol":
                     {
-                        HandleSystemProtocol(ctx,protocol.getProtocolData());
+                        HandleSystemProtocol(ctx,gson.fromJson(protocol.getProtocolData(), SystemProtocol.class));
                         break;
                     }
                     case "ChatProtocol" : {
@@ -240,13 +239,7 @@ public abstract class Client {
 
                         switch (transferProtocol.getTransferProtocolHead().getType()) {
                             case "fileList" : {
-                                List<TransferProtocol.TransferProtocolBodyBean> bodyBeans = transferProtocol.getTransferProtocolBody();
-                                StringBuilder builder = new StringBuilder("上传的文件列表：");
-                                for (TransferProtocol.TransferProtocolBodyBean bodyBean : bodyBeans) {
-                                    builder.append(bodyBean.getData()).append("、");
-                                }
-                                builder.deleteCharAt(builder.length() - 1);
-                                normalPrint(builder.toString());
+                                caughtFileSystemReport("fileList",transferProtocol);
                                 break;
                             }
 
@@ -297,6 +290,13 @@ public abstract class Client {
             }
         }
     }
+
+    /**
+     * 当接收到文件系统报告时(所有一般性)
+     * @param mode 模式(fileList/FileId/fileName)
+     * @param data 数据
+     */
+    protected abstract void caughtFileSystemReport(String mode, Object data);
 
     /**
      * 接收到服务端要求TOTP验证码时
